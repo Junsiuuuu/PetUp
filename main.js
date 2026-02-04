@@ -152,15 +152,36 @@ function createMacMenu() {
 
 function getBubblePosition(bubbleWidth, bubbleHeight) {
     let x = 0, y = 0;
+    const display = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = display.workArea; // 작업 표시줄 제외한 화면 크기
 
-    // 펫 윈도우가 살아있고, 보여지는 상태라면
+    // 1. 펫이 켜져 있을 때 -> 펫 기준
     if (appConfig.showPet && petWindow && !petWindow.isDestroyed() && petWindow.isVisible()) {
         const petBounds = petWindow.getBounds();
         const yOffset = 20; 
 
+        // 가로 중앙 정렬
         x = Math.round(petBounds.x + (petBounds.width / 2) - (bubbleWidth / 2));
+        
+        // 세로: 기본은 머리 위
         y = Math.round(petBounds.y - bubbleHeight - yOffset);
+
+        // 🚨 [핵심] 만약 말풍선이 화면 위쪽을 뚫고 나갔다면? (y < 0)
+        if (y < 0) {
+            // 펫 발밑(아래쪽)으로 위치 변경
+            y = Math.round(petBounds.y + petBounds.height + 10);
+        }
+
+        // 🚨 [핵심] 만약 말풍선이 화면 오른쪽을 뚫고 나갔다면?
+        if (x + bubbleWidth > screenWidth) {
+            x = screenWidth - bubbleWidth - 10; // 안쪽으로 밀어넣기
+        }
+        // 🚨 [핵심] 만약 말풍선이 화면 왼쪽을 뚫고 나갔다면?
+        if (x < 0) {
+            x = 10; // 안쪽으로 밀어넣기
+        }
     
+    // 2. 펫 꺼짐 (트레이 아이콘 기준)
     } else if (tray) {
         const trayBounds = tray.getBounds();
         const yOffset = 10; 
@@ -172,7 +193,11 @@ function getBubblePosition(bubbleWidth, bubbleHeight) {
         } else {
             y = Math.round(trayBounds.y - bubbleHeight - yOffset);
         }
+        
+        // 트레이 말풍선도 화면 오른쪽 넘어가지 않게 방지
+        if (x + bubbleWidth > screenWidth) x = screenWidth - bubbleWidth - 10;
     }
+
     return { x, y };
 }
 
@@ -303,17 +328,16 @@ function toggleBubble() {
 }
 
 function showBubble() {
-    if (!petWindow) return;
+    if (!bubbleWindow || bubbleWindow.isDestroyed()) return;
 
-    const petBounds = petWindow.getBounds();
-    const bubbleBounds = bubbleWindow.getBounds();
-    const yOffset = 20;
-
-    const x = Math.round(petBounds.x + (petBounds.width / 2) - (bubbleBounds.width / 2));
-    const y = Math.round(petBounds.y - bubbleBounds.height - yOffset);
+    const bounds = bubbleWindow.getBounds();
+    const { x, y } = getBubblePosition(bounds.width, bounds.height);
     
-    bubbleWindow.setPosition(x, y, false);
-    bubbleWindow.show();
+    bubbleWindow.setPosition(x, y, false); // 애니메이션 없이 즉시 이동
+    
+    // 순서 중요: 보이기 -> 맨 위로 올리기 -> 포커스
+    bubbleWindow.showInactive(); // show() 대신 showInactive()가 부드러울 때가 있음
+    bubbleWindow.setAlwaysOnTop(true, 'screen-saver'); // 최상위 강제 설정
     bubbleWindow.focus();
 }
 

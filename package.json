@@ -1,17 +1,46 @@
 {
-  "name": "week4",
+  "name": "my-desktop-pet",
   "version": "1.0.0",
-  "description": "",
+  "description": "내 컴퓨터 속 귀여운 펫",
   "main": "main.js",
+  "author": "Junsiuuuu",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.junsiuuuu.pet",
+    "productName": "PetUp",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "files": [
+      "**/*",
+      "!dist/*",
+      "!**/*.map"
+    ]
   },
   "keywords": [],
-  "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
-    "electron": "^40.1.0"
+    "electron": "^40.1.0",
+    "electron-builder": "^26.7.0"
   },
   "dependencies": {
     "google-tts-api": "^2.0.2",
