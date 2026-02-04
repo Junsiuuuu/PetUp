@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end; /* 바닥 정렬 */
+            overflow: hidden;
+            -webkit-app-region: drag; 
+        }
+        img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; /* 비율 유지하며 꽉 채우기 */
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+    </style>
+</head>
+<body>
+    <img id="pet-image" src="">
+    
+    <script>
+        const { ipcRenderer } = require('electron');
+        const img = document.getElementById('pet-image');
+
+        ipcRenderer.on('update-image', (event, imagePath) => {
+            // main.js에서 받은 "assets/pig/normal.png"를 그대로 넣음
+            img.src = imagePath;
+            
+            // 디버깅용 로그 (개발자 도구 켰을 때 확인 가능)
+            console.log('이미지 변경:', imagePath);
+        });
+    </script>
+</body>
+</html>
