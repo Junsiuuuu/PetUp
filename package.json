@@ -1,7 +1,7 @@
 {
   "name": "my-desktop-pet",
   "version": "1.0.0",
-  "description": "내 컴퓨터 속 귀여운 펫",
+  "description": "My Cute Desktop Pet",
   "main": "main.js",
   "author": "Junsiuuuu",
   "scripts": {
