@@ -18,19 +18,21 @@ let appConfig = {
     interval: 30000,   // 기본 5초
     soundVolume: 50,   // 기본 볼륨 50%
     character: 'pig',
-    showPet: true
+    showPet: true,
+    birthday: { month: 0, day: 0 }
 };
 
 let isForcedSleep = false; // [NEW] 강제 수면 상태인지 체크
 
 app.whenReady().then(() => {
-    if (isMac) {
-        app.dock.hide();
-    }
+    if (isMac) app.dock.hide();
 
-    // 1. 트레이 아이콘 생성
-    const iconPath = path.join(__dirname, 'assets', appConfig.character, 'normal.png');
-    tray = new Tray(nativeImage.createFromPath(iconPath));
+    // 1. 초기 아이콘 결정 (시작하자마자 생일인지 체크)
+    let startIcon = 'normal.png';
+    if (checkIsBirthday()) startIcon = 'birthday.png'; // 생일이면 시작부터 생일 아이콘!
+
+    const iconPath = path.join(__dirname, 'assets', appConfig.character, startIcon);
+    tray = new Tray(createTrayIcon(iconPath));
     tray.setToolTip('노는 중...');
 
     createPetWindow();
@@ -73,6 +75,7 @@ app.whenReady().then(() => {
         const intervalChanged = appConfig.interval !== newConfig.interval;
         const charChanged = appConfig.character !== newConfig.character;
         const showPetChanged = appConfig.showPet !== newConfig.showPet;
+        const birthdayChanged = JSON.stringify(appConfig.birthday) !== JSON.stringify(newConfig.birthday);
 
         appConfig = newConfig; // 설정값 업데이트
 
@@ -113,6 +116,12 @@ app.whenReady().then(() => {
             if (!isForcedSleep) {
                 checkSystemStatus();
             }
+        }
+
+        // ★ 캐릭터나 생일이 바뀌면 이미지 즉시 업데이트
+        if (charChanged || birthdayChanged) {
+             // 자는 중이 아니면 즉시 상태 체크(생일이면 모자 씀)
+            if (!isForcedSleep) checkSystemStatus();
         }
     });
 });
@@ -191,8 +200,9 @@ function createPetWindow() {
     
     // 초기 이미지 로드 (조금 뒤에 실행해야 로딩됨)
     petWindow.webContents.on('did-finish-load', () => {
-         const relativePath = `assets/${appConfig.character}/normal.png`;
-         petWindow.webContents.send('update-image', relativePath);
+        const startIcon = checkIsBirthday() ? 'birthday.png' : 'normal.png';
+        const relativePath = `assets/${appConfig.character}/${startIcon}`;
+        petWindow.webContents.send('update-image', relativePath);
     });
 }
 
@@ -247,7 +257,7 @@ function toggleSleepMode() {
 function openSettingsWindow() {
     if (settingsWindow) { settingsWindow.focus(); return; }
     settingsWindow = new BrowserWindow({
-        width: 400, height: 600, title: '환경 설정', autoHideMenuBar: true,
+        width: 400, height: 700, title: '환경 설정', autoHideMenuBar: true,
         webPreferences: { nodeIntegration: true, contextIsolation: false }
     });
     settingsWindow.loadFile('settings.html');
@@ -390,12 +400,22 @@ async function checkSystemStatus() {
         }
 
         // --- [기본 후보] 평범한 상태 정보 ---
-        candidates.push({
-            icon: 'normal.png',
-            title: '현재상태 👍',
-            content: `배터리 ${battery.percent}%, 온도 ${temp}도`,
-            shouldShow: true
-        });
+        if (checkIsBirthday()) {
+            candidates.push({
+                icon: 'birthday.png',
+                title: '생일 축하해요! 🎂',
+                content: `오늘 하루 행복하세요! (배터리 ${battery.percent}%)`,
+                shouldShow: true
+            });
+        } else {
+            // 생일이 아니면 원래대로 normal.png 사용
+            candidates.push({
+                icon: 'normal.png',
+                title: '현재상태 👍',
+                content: `배터리 ${battery.percent}%, 온도 ${temp}도`,
+                shouldShow: true
+            });
+        }
     
 
         const pick = candidates[Math.floor(Math.random() * candidates.length)];
@@ -433,4 +453,16 @@ async function checkSystemStatus() {
     } catch (error) {
         console.error('시스템 정보 읽기 실패:', error);
     }
+}
+
+// ★ [추가] 오늘이 생일인지 확인하는 함수
+function checkIsBirthday() {
+    if (!appConfig.birthday || appConfig.birthday.month === 0) return false;
+
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // 월은 0부터 시작해서 +1
+    const currentDay = now.getDate();
+
+    return appConfig.birthday.month === currentMonth && 
+           appConfig.birthday.day === currentDay;
 }

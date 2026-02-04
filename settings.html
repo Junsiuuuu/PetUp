@@ -164,12 +164,28 @@
             <option value="dog">강아지</option>
             <option value="monkey">원숭이</option>
             <option value="elephant">코끼리</option>
+            <option value="goose">거위</option>
         </select>
         
         <div class="checkbox-row">
             <span class="checkbox-label">바탕화면에 캐릭터 표시</span>
             <input type="checkbox" id="pet-toggle">
         </div>
+    </div>
+
+    <div class="control-group">
+        <label>생일 (Birthday) 🎂</label>
+        <div class="birth-row" style="display: flex; gap: 10px; align-items: center;">
+            <select id="birth-month" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
+                <option value="0">선택 안 함</option>
+                </select>
+            <span>월</span>
+            <select id="birth-day" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
+                <option value="0">선택 안 함</option>
+                </select>
+            <span>일</span>
+        </div>
+        <p class="desc">생일이 되면 캐릭터가 축하해줍니다!</p>
     </div>
 
     <div class="control-group">
@@ -214,10 +230,30 @@
         const closeBtn = document.getElementById('close-btn');
         const toast = document.getElementById('toast');
 
+        const birthMonth = document.getElementById('birth-month');
+        const birthDay = document.getElementById('birth-day');
+
+        // [추가] 1월~12월, 1일~31일 옵션 자동 생성
+        for(let i=1; i<=12; i++) {
+            let option = document.createElement('option');
+            option.value = i; option.text = i;
+            birthMonth.appendChild(option);
+        }
+        for(let i=1; i<=31; i++) {
+            let option = document.createElement('option');
+            option.value = i; option.text = i;
+            birthDay.appendChild(option);
+        }
+
         // --- 1. 초기값 받아오기 (앱 켜질 때) ---
         ipcRenderer.on('init-settings', (event, config) => {
             charSelect.value = config.character;
             petToggle.checked = config.showPet; // [NEW] 체크 상태 반영
+
+            if (config.birthday) {
+                birthMonth.value = config.birthday.month || 0;
+                birthDay.value = config.birthday.day || 0;
+            }
 
             // 빈도 (밀리초 -> 초)
             const seconds = config.interval / 1000;
@@ -264,6 +300,10 @@
             ipcRenderer.send('update-config', {
                 character: charSelect.value,
                 showPet: petToggle.checked, // [NEW] 체크박스 값(true/false) 전송
+                birthday: {
+                    month: parseInt(birthMonth.value),
+                    day: parseInt(birthDay.value)
+                },
                 interval: freqVal * 1000,   // 초 -> 밀리초 변환
                 soundVolume: volVal
             });
