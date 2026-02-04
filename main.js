@@ -2,6 +2,7 @@ const { app, Tray, Menu, nativeImage, BrowserWindow, ipcMain, screen } = require
 const path = require('path');
 const si = require('systeminformation');
 const loudness = require('loudness');
+const fs = require('fs'); // [NEW] 파일 시스템 모듈 추가
 
 const isMac = process.platform === 'darwin';
 // ★ [필수] 사용자 클릭 없이도 TTS/소리 재생 허용
@@ -15,13 +16,45 @@ let statusCheckInterval = null;
 let dragInterval = null;
 
 // --- [전역 설정 변수] ---
-let appConfig = {
+// --- [전역 설정 변수] ---
+// 기본값 정의
+const defaultConfig = {
     interval: 30000,   // 기본 5초
     soundVolume: 50,   // 기본 볼륨 50%
     character: 'pig',
     showPet: true,
     birthday: { month: 0, day: 0 }
 };
+
+let appConfig = loadConfig(); // 저장된 설정 불러오기
+
+// [NEW] 설정 저장 경로 (앱 데이터 폴더/config.json)
+function getConfigPath() {
+    return path.join(app.getPath('userData'), 'config.json');
+}
+
+// [NEW] 설정 불러오기 함수
+function loadConfig() {
+    try {
+        const configPath = getConfigPath();
+        if (fs.existsSync(configPath)) {
+            const data = fs.readFileSync(configPath, 'utf-8');
+            return { ...defaultConfig, ...JSON.parse(data) }; // 기본값 + 저장된값 병합
+        }
+    } catch (e) {
+        console.error('설정 로드 실패:', e);
+    }
+    return { ...defaultConfig };
+}
+
+// [NEW] 설정 저장 함수
+function saveConfig(config) {
+    try {
+        fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2));
+    } catch (e) {
+        console.error('설정 저장 실패:', e);
+    }
+}
 
 let isForcedSleep = false; // [NEW] 강제 수면 상태인지 체크
 
@@ -79,6 +112,7 @@ app.whenReady().then(() => {
         const birthdayChanged = JSON.stringify(appConfig.birthday) !== JSON.stringify(newConfig.birthday);
 
         appConfig = newConfig; // 설정값 업데이트
+        saveConfig(appConfig); // [NEW] 변경된 설정 파일로 저장
 
         if (intervalChanged) startStatusCheck();
 
@@ -216,6 +250,9 @@ function createTrayIcon(imagePath) {
     // Mac은 트레이 아이콘이 너무 크면 상단바가 깨짐. 22x22 정도로 리사이징 필요
     if (isMac) {
         image = image.resize({ width: 22, height: 22 });
+    } else {
+        // [Windows] 원본이 너무 크면 트레이에 안 뜰 수 있으므로 32x32로 리사이징
+        image = image.resize({ width: 32, height: 32 });
     }
     return image;
 }
@@ -310,11 +347,99 @@ function updateContextMenu() {
             click: toggleSleepMode
         },
         { type: 'separator' },
+        {
+            label: '🔮 물어보기',
+            submenu: [
+                { label: '📅 오늘의 운세', click: askDailyFortune },
+                { label: '🍴 메뉴 추천', click: recommendMenu },
+                { label: '🎲 고민 해결 (Yes/No)', click: askDecision }
+            ]
+        },
+        { type: 'separator' },
         { label: '환경 설정...', type: 'normal', click: openSettingsWindow },
         { type: 'separator' },
         { label: '종료', type: 'normal', click: () => app.quit() }
     ]);
     tray.setContextMenu(contextMenu);
+}
+
+// --- 1. 오늘의 운세 ---
+function askDailyFortune() {
+    wakeUpIfSleeping();
+
+    const fortunes = [
+        "오늘은 뜻밖의 행운이 찾아올 거예요! 🍀\n복권을 사보시는 건 어때요?",
+        "신중함이 필요한 하루입니다.\n작은 실수도 조심하면 좋은 결과가 있을 거예요.",
+        "오래된 친구에게 연락이 올 수도 있어요.\n반갑게 맞이해주세요! 👋",
+        "오늘은 열정이 넘치는 날! 🔥\n미뤄뒀던 일을 시작하기 딱 좋습니다.",
+        "조금 지칠 수 있는 날이에요.\n달콤한 간식으로 기분을 전환해보세요! 🍫",
+        "금전운이 아주 좋아요! 💰\n하지만 과소비는 금물입니다.",
+        "사랑운이 가득한 하루! 💕\n주변 사람들에게 친절을 베풀어보세요."
+    ];
+
+    const pick = fortunes[Math.floor(Math.random() * fortunes.length)];
+    showBubbleMessage('오늘의 운세 📅', pick, 'cool.png');
+}
+
+// --- 2. 메뉴 추천 ---
+function recommendMenu() {
+    wakeUpIfSleeping();
+
+    const menus = [
+        "김치찌개", "된장찌개", "삼겹살", "치킨", "피자", "햄버거",
+        "떡볶이", "초밥", "돈까스", "짜장면", "짬뽕", "마라탕",
+        "파스타", "샐러드", "국밥", "샌드위치"
+    ];
+
+    const pick = menus[Math.floor(Math.random() * menus.length)];
+    const comments = [
+        "이거 어때요? 😋",
+        "오늘은 이게 딱이에요! �",
+        "침 고이네요... 🤤",
+        "제가 먹고 싶어서 추천했어요! �"
+    ];
+    const comment = comments[Math.floor(Math.random() * comments.length)];
+
+    showBubbleMessage('메뉴 추천 🍴', `[${pick}]\n${comment}`, 'hungry.png');
+}
+
+// --- 3. 고민 해결 (구 askFortune) ---
+function askDecision() {
+    wakeUpIfSleeping();
+
+    const answers = [
+        "무조건 고! 🚀", "음... 글쎄요 🤔", "오늘은 참으세요 ❌",
+        "당신의 직감을 믿으세요 ✨", "대박 예감! 💰", "조금만 더 생각해보세요 🧠",
+        "지금이 기회예요! ⭐️", "귀여운 저를 봐서 참으세요 🐷"
+    ];
+
+    const pick = answers[Math.floor(Math.random() * answers.length)];
+    showBubbleMessage('고민 해결 🎲', pick, 'normal.png');
+}
+
+// --- 공통 헬퍼 함수들 ---
+function wakeUpIfSleeping() {
+    if (isForcedSleep) {
+        toggleSleepMode();
+    }
+}
+
+function showBubbleMessage(title, content, iconName) {
+    if (bubbleWindow && !bubbleWindow.isDestroyed()) {
+        const tailPosition = (isMac && !appConfig.showPet) ? 'top' : 'bottom';
+        const soundPath = path.join(__dirname, 'assets', appConfig.character, 'sound.mp3');
+
+        bubbleWindow.webContents.send('update-message', {
+            title: title,
+            content: content,
+            soundVolume: appConfig.soundVolume,
+            isNewPopup: true,
+            emotion: iconName,
+            tailPosition: tailPosition,
+            soundPath: soundPath
+        });
+        showBubble();
+    }
 }
 
 // --- [NEW] 수면 모드 토글 함수 ---
@@ -499,19 +624,22 @@ async function checkSystemStatus() {
         }
 
         // --- [기본 후보] 평범한 상태 정보 ---
+        // --- [기본 후보] 평범한 상태 정보 ---
+
+        // 1. 기본 상태 (Normal)은 항상 후보에 포함
+        candidates.push({
+            icon: 'normal.png',
+            title: '현재상태 👍',
+            content: `배터리 ${battery.percent}%, 온도 ${temp}도`,
+            shouldShow: true
+        });
+
+        // 2. 생일이면 생일 축하 메시지도 후보에 추가 (랜덤으로 뜸)
         if (checkIsBirthday()) {
             candidates.push({
                 icon: 'birthday.png',
                 title: '생일 축하해요! 🎂',
                 content: `오늘 하루 행복하세요! (배터리 ${battery.percent}%)`,
-                shouldShow: true
-            });
-        } else {
-            // 생일이 아니면 원래대로 normal.png 사용
-            candidates.push({
-                icon: 'normal.png',
-                title: '현재상태 👍',
-                content: `배터리 ${battery.percent}%, 온도 ${temp}도`,
                 shouldShow: true
             });
         }

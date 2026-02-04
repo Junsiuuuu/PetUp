@@ -17,7 +17,7 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico",
+      "icon": "assets/icon.png",
       "requestedExecutionLevel": "requireAdministrator"
     },
     "nsis": {
@@ -28,7 +28,7 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "assets/icon.icns"
+      "icon": "assets/icon.png"
     },
     "files": [
       "**/*",
