@@ -182,10 +182,10 @@ function createPetWindow() {
     const { width, height, x: workX, y: workY } = display.workArea; // workX, workY는 작업영역 시작점
 
     petWindow = new BrowserWindow({
-        width: 200, height: 200,
+        width: 120, height: 120,
         // [Mac 수정] 좌표 계산 시 workX, workY를 더해줘야 정확한 위치에 뜸
-        x: workX + width - 220, 
-        y: workY + height - 200,
+        x: workX + width - 160, 
+        y: workY + height - 160,
         transparent: true, frame: false, alwaysOnTop: true, skipTaskbar: true, focusable: false,
         show: appConfig.showPet,
         webPreferences: { nodeIntegration: true, contextIsolation: false }
@@ -195,6 +195,27 @@ function createPetWindow() {
     if (isMac) {
         petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     }
+
+    petWindow.on('move', () => {
+        try {
+            // 1. 말풍선 윈도우가 없거나 죽었으면(destroyed) 무시
+            if (!bubbleWindow || bubbleWindow.isDestroyed()) return;
+            
+            // 2. 말풍선이 보여질 때만 따라다님
+            if (bubbleWindow.isVisible()) {
+                const bubbleBounds = bubbleWindow.getBounds();
+                
+                // 3. 펫 위치 기준으로 말풍선 위치 계산
+                const { x, y } = getBubblePosition(bubbleBounds.width, bubbleBounds.height);
+                
+                // 4. 위치 적용 (에러 발생 시 catch로 이동)
+                bubbleWindow.setPosition(x, y);
+            }
+        } catch (error) {
+            // 이동 중 에러가 나면 무시함 (드래그가 너무 빠를 때 발생 가능)
+            // console.log('이동 중 경미한 에러 무시:', error.message);
+        }
+    });
 
     petWindow.loadFile('pet.html');
     
