@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         body {
@@ -8,9 +9,11 @@
             background: transparent;
             display: flex;
             justify-content: center;
-            align-items: flex-end; /* 아래쪽 정렬 */
+            align-items: flex-end;
+            /* 아래쪽 정렬 */
             height: 100vh;
-            overflow: hidden; /* 스크롤바 방지 */
+            overflow: hidden;
+            /* 스크롤바 방지 */
             font-family: 'Malgun Gothic', sans-serif;
         }
 
@@ -20,17 +23,21 @@
             border: 2px solid #333;
             border-radius: 10px;
             padding: 10px 15px;
-            
+
             /* ▼▼▼ [수정됨] 크기 자동 조절 CSS ▼▼▼ */
-            width: auto;           /* 내용에 맞게 늘어남 */
-            min-width: 150px;      /* 최소 크기 (너무 작아짐 방지) */
-            max-width: 300px;      /* 최대 크기 (너무 길어짐 방지) */
-            word-break: keep-all;  /* 단어 중간에 끊기지 않게 */
+            width: auto;
+            /* 내용에 맞게 늘어남 */
+            min-width: 150px;
+            /* 최소 크기 (너무 작아짐 방지) */
+            max-width: 300px;
+            /* 최대 크기 (너무 길어짐 방지) */
+            word-break: keep-all;
+            /* 단어 중간에 끊기지 않게 */
             /* ▲▲▲ -------------------------- ▲▲▲ */
 
             margin-bottom: 15px;
 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             text-align: center;
             animation: pop 0.3s ease-out;
         }
@@ -55,18 +62,56 @@
             border-width: 12px 10px 0;
             border-style: solid;
             border-color: #fff transparent transparent transparent;
+            /* Original white color retained */
             z-index: 1;
         }
 
-        h3 { margin: 0 0 5px 0; font-size: 14px; color: #ff6b6b; }
-        p { margin: 0; font-size: 12px; color: #333; line-height: 1.4; }
+        /* ▲▲▲ [New] 꼬리 위쪽 방향 (Mac Tray용) 시작 ▲▲▲ */
+        .bubble.tail-top::after {
+            bottom: auto;
+            top: -12px;
+            /* 위쪽으로 튀어나오게 */
+            border-width: 0 10px 12px;
+            /* 위쪽 뾰족 */
+            border-color: transparent transparent #333 transparent;
+        }
+
+        .bubble.tail-top::before {
+            bottom: auto;
+            top: -9px;
+            border-width: 0 10px 12px;
+            border-color: transparent transparent #fff transparent;
+        }
+
+        /* ▼▼▼ [New] 꼬리 위쪽 방향 끝 ▼▼▼ */
+
+        h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            color: #ff6b6b;
+        }
+
+        p {
+            margin: 0;
+            font-size: 12px;
+            color: #333;
+            line-height: 1.4;
+        }
 
         @keyframes pop {
-            0% { transform: scale(0.5); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="bubble" id="bubble-container">
         <h3 id="title">상태 메시지</h3>
@@ -75,9 +120,6 @@
 
     <script>
         const { ipcRenderer } = require('electron');
-        
-        // 브라우저 내장 TTS 엔진 가져오기
-        const synth = window.speechSynthesis;
 
         ipcRenderer.on('update-message', (event, data) => {
             const titleEl = document.getElementById('title');
@@ -87,82 +129,41 @@
             titleEl.innerText = data.title;
             msgEl.innerText = data.content;
 
-            // --- [TTS 읽기 로직] ---
-            
-            // 1. 기존에 하고 있던 말 취소 (말이 겹치지 않게)
-            if (synth.speaking) {
-                synth.cancel();
-            }
-
-            // 2. 볼륨이 0이 아니고, 새 팝업일 때만 읽기
-            if (data.soundVolume > 0 && data.isNewPopup) {
-                
-                // 읽을 내용 설정
-                const textToRead = data.ttsText; 
-
-                const utterance = new SpeechSynthesisUtterance(textToRead);
-                
-                // TTS 설정
-                utterance.lang = 'ko-KR'; // 한국어 설정
-                utterance.volume = data.soundVolume / 100; // 볼륨 (0.0 ~ 1.0)
-
-                let pitch = 1.2;
-                let rate = 1.1;
-
-                switch (data.emotion) {
-                    case 'full.png':   // 기분 좋음: 높고 빠름 (촐싹댐)
-                    case 'cool.png':
-                    case 'wifi_good.png': // (만약 있다면)
-                        pitch = 2.0; // 톤 높게
-                        rate = 1.3;  // 말 빠르게
-                        break;
-                    
-                    case 'sad.png':     // 슬픔/와이파이 끊김: 낮고 느림 (우울)
-                    case 'hungry.png':  // 배고픔
-                    case 'mute.png':
-                    case 'wifi_bad.png':
-                        pitch = 0.9; // 톤 낮게 (지하 암반수 목소리)
-                        rate = 0.9;  // 말 느리게
-                        break;
-
-                    case 'hot.png':     // 뜨거움/화남: 톤은 낮은데 말은 빠름 (다급함)
-                    case 'noisy.png':
-                        pitch = 1.4;
-                        rate = 1.4;
-                        break;
-                    
-                    case 'sleep.png':   // 자는 중: 아주 느리고 나른함
-                        pitch = 0.7;
-                        rate = 0.6;
-                        break;
-
-                    default:            // normal.png 등: 약간 밝은 톤
-                        pitch = 1.2;
-                        rate = 1.1;
-                        break;
+            // [NEW] 효과음 재생
+            if (data.isNewPopup && data.soundVolume > 0 && data.soundPath) {
+                try {
+                    const audio = new Audio(data.soundPath);
+                    audio.volume = data.soundVolume / 100;
+                    audio.play().catch(e => console.log('Audio play failed:', e));
+                } catch (e) {
+                    console.log('Audio init failed:', e);
                 }
-                utterance.rate = rate; // 속도 (1.0이 보통, 1.2는 빠름)
-                utterance.pitch = pitch; // 톤 (높낮이)
-
-                // 말하기 시작!
-                synth.speak(utterance);
             }
-            // -----------------------------
+
+            // 꼬리 방향 설정
+            if (data.tailPosition === 'top') {
+                container.classList.add('tail-top');
+                // 위쪽 꼬리일 때는 align-items를 flex-start로 바꿔야 짤리지 않을 수도 있음. 
+                // 하지만 body가 flex-end라... body 설정을 건드리긴 복잡하니 bubble margin-top을 줌
+                container.style.marginTop = '15px';
+                container.style.marginBottom = '0';
+            } else {
+                container.classList.remove('tail-top');
+                container.style.marginTop = '0';
+                container.style.marginBottom = '15px';
+            }
 
             requestAnimationFrame(() => {
                 const width = container.offsetWidth + 30;
-                const height = container.offsetHeight + 30; 
+                const height = container.offsetHeight + 30;
                 ipcRenderer.send('resize-bubble', { width, height });
             });
         });
 
         document.body.addEventListener('click', () => {
-            // 말풍선 클릭 시 말하던 것도 멈추고 창 닫기
-            if (synth.speaking) {
-                synth.cancel();
-            }
-            ipcRenderer.send('hide-bubble'); 
+            ipcRenderer.send('hide-bubble');
         });
     </script>
 </body>
+
 </html>

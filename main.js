@@ -5,7 +5,7 @@ const loudness = require('loudness');
 
 const isMac = process.platform === 'darwin';
 // ★ [필수] 사용자 클릭 없이도 TTS/소리 재생 허용
-app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+// ★ [필수] 사용자 클릭 없이도 TTS/소리 재생 허용 (삭제됨)
 
 let tray = null;
 let bubbleWindow = null;
@@ -67,7 +67,7 @@ app.whenReady().then(() => {
     ipcMain.on('resize-bubble', (event, { width, height }) => {
         if (!bubbleWindow) return;
         bubbleWindow.setSize(width, height);
-        
+
         const { x, y } = getBubblePosition(width, height);
         bubbleWindow.setPosition(x, y);
     });
@@ -81,7 +81,7 @@ app.whenReady().then(() => {
         appConfig = newConfig; // 설정값 업데이트
 
         if (intervalChanged) startStatusCheck();
-        
+
         // 1. 펫 윈도우 켜기/끄기 즉시 반영
         if (showPetChanged) {
             if (appConfig.showPet) {
@@ -95,18 +95,24 @@ app.whenReady().then(() => {
                 const { x, y } = getBubblePosition(bounds.width, bounds.height);
                 bubbleWindow.setPosition(x, y);
             }
+
+            // [Mac 수정] 펫 켜기/끄기에 따라 워크스페이스 따라가기 여부 결정
+            if (isMac && bubbleWindow && !bubbleWindow.isDestroyed()) {
+                bubbleWindow.setVisibleOnAllWorkspaces(appConfig.showPet, { visibleOnFullScreen: true });
+            }
         }
 
-        // 2. ★ [핵심] 캐릭터가 바뀌었으면 "즉시" 이미지 교체 (기다리지 않음)
-        if (charChanged) {
-            // 현재 자는 중이면 sleep.png, 아니면 normal.png를 바로 보여줌
-            const stateIcon = isForcedSleep ? 'sleep.png' : 'normal.png';
-            
+        // 2. ★ [핵심] 캐릭터가 바뀌었거나 생일 설정이 바뀌었으면 "즉시" 이미지 교체
+        if (charChanged || birthdayChanged) {
+            // 현재 자는 중이면 sleep.png, 아니면 (생일이면 birthday.png, 아니면 normal.png)를 바로 보여줌
+            const baseIcon = checkIsBirthday() ? 'birthday.png' : 'normal.png';
+            const stateIcon = isForcedSleep ? 'sleep.png' : baseIcon;
+
             // 트레이 아이콘 변경
             const iconPath = path.join(__dirname, 'assets', appConfig.character, stateIcon);
-            
+
             tray.setImage(createTrayIcon(iconPath));
-            
+
             // 펫 윈도우 이미지 변경
             if (petWindow) {
                 const relativePath = `assets/${appConfig.character}/${stateIcon}`;
@@ -115,25 +121,20 @@ app.whenReady().then(() => {
 
             // 깨어있는 상태라면, 잠시 후 실제 상태(배고픔 등)로 다시 한 번 업데이트
             if (!isForcedSleep) {
+                // 즉시 반영 후 자연스럽게 상태 체크로 넘어감
                 checkSystemStatus();
             }
-        }
-
-        // ★ 캐릭터나 생일이 바뀌면 이미지 즉시 업데이트
-        if (charChanged || birthdayChanged) {
-             // 자는 중이 아니면 즉시 상태 체크(생일이면 모자 씀)
-            if (!isForcedSleep) checkSystemStatus();
         }
     });
 
     // 1. 드래그 시작
     ipcMain.on('drag-start', () => {
         if (!petWindow || petWindow.isDestroyed()) return;
-        
+
         try {
             const cursor = screen.getCursorScreenPoint();
             const winBounds = petWindow.getBounds();
-            
+
             const offsetX = cursor.x - winBounds.x;
             const offsetY = cursor.y - winBounds.y;
             const fixedWidth = winBounds.width;
@@ -164,7 +165,7 @@ app.whenReady().then(() => {
                     // 2. 말풍선 이동
                     if (bubbleWindow && !bubbleWindow.isDestroyed() && bubbleWindow.isVisible()) {
                         const bubbleBounds = bubbleWindow.getBounds();
-                        
+
                         // ★ [핵심] "지금 펫 어디 있어?"(getBounds) 라고 묻지 말고
                         // "펫은 방금 newX, newY로 갔어!" 라고 직접 알려줍니다.
                         // 이렇게 하면 시차가 0이 됩니다.
@@ -177,7 +178,7 @@ app.whenReady().then(() => {
 
                         // 수정된 함수에 가짜 위치(simulatedPetBounds)를 넣어줌
                         const { x: bx, y: by } = getBubblePosition(bubbleBounds.width, bubbleBounds.height, simulatedPetBounds);
-                        
+
                         bubbleWindow.setPosition(bx, by, false);
                         bubbleWindow.setAlwaysOnTop(true, 'screen-saver');
                     }
@@ -185,7 +186,7 @@ app.whenReady().then(() => {
                     // 드래그 중 에러 무시
                 }
             }, 16);
-            
+
         } catch (error) {
             console.log("드래그 시작 실패:", error);
         }
@@ -202,7 +203,7 @@ app.whenReady().then(() => {
         if (petWindow && bubbleWindow && !bubbleWindow.isDestroyed() && bubbleWindow.isVisible()) {
             const bubbleBounds = bubbleWindow.getBounds();
             const { x, y } = getBubblePosition(bubbleBounds.width, bubbleBounds.height);
-            
+
             // 애니메이션 없이 즉시 이동
             bubbleWindow.setPosition(x, y, false);
         }
@@ -235,7 +236,7 @@ function createMacMenu() {
 
 function getBubblePosition(bubbleWidth, bubbleHeight, customPetBounds = null) {
     let x = 0, y = 0;
-    
+
     // 1. 펫이 켜져 있을 때
     if (appConfig.showPet && petWindow && !petWindow.isDestroyed()) {
         const petBounds = customPetBounds || petWindow.getBounds();
@@ -243,22 +244,23 @@ function getBubblePosition(bubbleWidth, bubbleHeight, customPetBounds = null) {
 
         // ★ [가로] 무조건 펫의 정중앙 (화면 밖으로 나가도 상관 안 함)
         x = Math.round(petBounds.x + (petBounds.width / 2) - (bubbleWidth / 2));
-        
+
         // ★ [세로] 무조건 머리 위 (화면 밖으로 나가도 상관 안 함)
         y = Math.round(petBounds.y - bubbleHeight - yOffset);
 
         // ※ screenX, screenY 검사 코드 전부 삭제함! (자유롭게 이동 가능)
-    
-    // 2. 펫이 꺼져 있을 때 (트레이 아이콘 기준)
+
+        // 2. 펫이 꺼져 있을 때 (트레이 아이콘 기준)
     } else if (tray) {
         const trayBounds = tray.getBounds();
-        const yOffset = 10; 
-        
+        const yOffset = 10;
+
         // 트레이 아이콘 중앙
         x = Math.round(trayBounds.x + (trayBounds.width / 2) - (bubbleWidth / 2));
-        
+
         if (isMac) {
-            y = Math.round(trayBounds.y + trayBounds.height + yOffset); 
+            // [Mac 수정] 트레이 아이콘 바로 밑에 붙도록 간격 줄임 (10 -> 2)
+            y = Math.round(trayBounds.y + trayBounds.height + 2);
         } else {
             y = Math.round(trayBounds.y - bubbleHeight - yOffset);
         }
@@ -276,7 +278,7 @@ function createPetWindow() {
     petWindow = new BrowserWindow({
         width: 120, height: 120,
         // [Mac 수정] 좌표 계산 시 workX, workY를 더해줘야 정확한 위치에 뜸
-        x: workX + width - 160, 
+        x: workX + width - 160,
         y: workY + height - 160,
         transparent: true, frame: false, alwaysOnTop: true, skipTaskbar: true, focusable: false,
         show: appConfig.showPet,
@@ -289,7 +291,7 @@ function createPetWindow() {
     }
 
     petWindow.loadFile('pet.html');
-    
+
     // 초기 이미지 로드 (조금 뒤에 실행해야 로딩됨)
     petWindow.webContents.on('did-finish-load', () => {
         const startIcon = checkIsBirthday() ? 'birthday.png' : 'normal.png';
@@ -323,10 +325,10 @@ function toggleSleepMode() {
 
         const stateIcon = isForcedSleep ? 'sleep.png' : 'normal.png';
         const iconPath = path.join(__dirname, 'assets', appConfig.character, stateIcon);
-        
+
         // 트레이 아이콘 변경
         tray.setImage(createTrayIcon(iconPath));
-        
+
         // 펫 윈도우 이미지 변경 (창이 살아있을 때만!)
         if (petWindow && !petWindow.isDestroyed()) {
             const relativePath = `assets/${appConfig.character}/${stateIcon}`;
@@ -366,6 +368,12 @@ function createBubbleWindow() {
         webPreferences: { nodeIntegration: true, contextIsolation: false }
     });
     bubbleWindow.loadFile('bubble.html');
+
+    // [Mac 수정] Mac에서 'alwaysOnTop'이 풀리는 경우 방지 및 스페이스 이동 시 따라오기
+    if (isMac) {
+        // 펫이 보일 때만 모든 워크스페이스에서 보임
+        bubbleWindow.setVisibleOnAllWorkspaces(appConfig.showPet, { visibleOnFullScreen: true });
+    }
 }
 
 function toggleBubble() {
@@ -378,9 +386,9 @@ function showBubble() {
 
     const bounds = bubbleWindow.getBounds();
     const { x, y } = getBubblePosition(bounds.width, bounds.height);
-    
+
     bubbleWindow.setPosition(x, y, false); // 애니메이션 없이 즉시 이동
-    
+
     // 순서 중요: 보이기 -> 맨 위로 올리기 -> 포커스
     bubbleWindow.showInactive(); // show() 대신 showInactive()가 부드러울 때가 있음
     bubbleWindow.setAlwaysOnTop(true, 'screen-saver'); // 최상위 강제 설정
@@ -507,14 +515,14 @@ async function checkSystemStatus() {
                 shouldShow: true
             });
         }
-    
+
 
         const pick = candidates[Math.floor(Math.random() * candidates.length)];
 
         const absPath = path.join(__dirname, 'assets', appConfig.character, pick.icon);
         // [Mac 수정] 이미지 변경 시 리사이징 적용
         tray.setImage(createTrayIcon(absPath));
-        
+
         // 2. 펫 윈도우 이미지 (file:// URL 사용)
         if (petWindow) {
             const relativePath = `assets/${appConfig.character}/${pick.icon}`;
@@ -526,13 +534,20 @@ async function checkSystemStatus() {
             const rawText = pick.title;
             const cleanText = rawText.replace(/[^가-힣a-zA-Z0-9\s.,?!%]/g, '');
 
+            // 말풍선 꼬리 방향 결정 (Mac이고 펫이 숨겨져서 트레이에 붙을 때만 'top')
+            const tailPosition = (isMac && !appConfig.showPet) ? 'top' : 'bottom';
+
+            // 효과음 경로 (각 캐릭터 폴더의 sound.mp3)
+            const soundPath = path.join(__dirname, 'assets', appConfig.character, 'sound.mp3');
+
             bubbleWindow.webContents.send('update-message', {
                 title: pick.title,
                 content: pick.content,
                 soundVolume: appConfig.soundVolume,
                 isNewPopup: isNewPopup,
                 emotion: pick.icon,
-                ttsText: cleanText
+                tailPosition: tailPosition,
+                soundPath: soundPath
             });
         }
 
@@ -554,6 +569,6 @@ function checkIsBirthday() {
     const currentMonth = now.getMonth() + 1; // 월은 0부터 시작해서 +1
     const currentDay = now.getDate();
 
-    return appConfig.birthday.month === currentMonth && 
-           appConfig.birthday.day === currentDay;
+    return appConfig.birthday.month === currentMonth &&
+        appConfig.birthday.day === currentDay;
 }

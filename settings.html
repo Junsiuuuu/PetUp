@@ -1,43 +1,44 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <title>환경 설정</title>
     <style>
         /* --- [디자인 스타일] --- */
-        body { 
-            font-family: 'Malgun Gothic', sans-serif; 
-            padding: 15px; 
-            background: #f7f7f7; 
-            user-select: none; 
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            padding: 15px;
+            background: #f7f7f7;
+            user-select: none;
             overflow: hidden;
         }
-        
-        h2 { 
-            margin-top: 0; 
-            color: #333; 
+
+        h2 {
+            margin-top: 0;
+            color: #333;
             border-bottom: 2px solid #ddd;
             padding-bottom: 10px;
             margin-bottom: 15px;
         }
-        
+
         /* 설정 항목 박스 디자인 */
-        .control-group { 
-            background: white; 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin-bottom: 10px; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+        .control-group {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
-        
-        label { 
-            display: block; 
-            font-weight: bold; 
-            margin-bottom: 8px; 
-            color: #444; 
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #444;
             font-size: 14px;
         }
-        
+
         /* 가로 배치용 (슬라이더 + 숫자) */
         .input-row {
             display: flex;
@@ -46,12 +47,12 @@
         }
 
         /* 슬라이더 스타일 */
-        input[type="range"] { 
-            flex-grow: 1; 
-            cursor: pointer; 
+        input[type="range"] {
+            flex-grow: 1;
+            cursor: pointer;
             height: 4px;
         }
-        
+
         /* 숫자 입력칸 스타일 */
         input[type="number"] {
             width: 60px;
@@ -64,19 +65,19 @@
         }
 
         /* 선택 박스 스타일 */
-        select { 
-            width: 100%; 
-            padding: 8px; 
-            border: 1px solid #ddd; 
-            border-radius: 5px; 
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
             font-size: 13px;
         }
 
         /* 설명 텍스트 */
-        .desc { 
-            font-size: 11px; 
-            color: #999; 
-            margin-top: 5px; 
+        .desc {
+            font-size: 11px;
+            color: #999;
+            margin-top: 5px;
             line-height: 1.2;
         }
 
@@ -84,12 +85,13 @@
         .checkbox-row {
             display: flex;
             align-items: center;
-            justify-content: space-between; /* 양끝 정렬 */
+            justify-content: space-between;
+            /* 양끝 정렬 */
             margin-top: 10px;
             padding-top: 10px;
             border-top: 1px dashed #eee;
         }
-        
+
         .checkbox-label {
             font-size: 13px;
             color: #555;
@@ -101,7 +103,8 @@
             width: 18px;
             height: 18px;
             cursor: pointer;
-            accent-color: #4CAF50; /* 체크 색상 초록색 */
+            accent-color: #4CAF50;
+            /* 체크 색상 초록색 */
         }
 
         /* 버튼 그룹 (하단) */
@@ -122,11 +125,25 @@
             font-size: 14px;
         }
 
-        #save-btn { background: #4CAF50; color: white; } /* 초록색 */
-        #save-btn:hover { background: #45a049; }
+        #save-btn {
+            background: #4CAF50;
+            color: white;
+        }
 
-        #close-btn { background: #e0e0e0; color: #333; } /* 회색 */
-        #close-btn:hover { background: #d0d0d0; }
+        /* 초록색 */
+        #save-btn:hover {
+            background: #45a049;
+        }
+
+        #close-btn {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        /* 회색 */
+        #close-btn:hover {
+            background: #d0d0d0;
+        }
 
         /* 알림 팝업 (Toast) 스타일 */
         #toast {
@@ -143,16 +160,26 @@
             left: 50%;
             bottom: 20px;
             transform: translateX(-50%);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
             font-size: 13px;
             opacity: 0;
             transition: opacity 0.3s, bottom 0.3s;
         }
 
-        #toast.show { visibility: visible; opacity: 1; bottom: 40px; }
-        #toast.success { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #2e7d32; }
+        #toast.show {
+            visibility: visible;
+            opacity: 1;
+            bottom: 40px;
+        }
+
+        #toast.success {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #2e7d32;
+        }
     </style>
 </head>
+
 <body>
     <h2>⚙️ 환경 설정</h2>
 
@@ -166,7 +193,7 @@
             <option value="elephant">코끼리</option>
             <option value="goose">거위</option>
         </select>
-        
+
         <div class="checkbox-row">
             <span class="checkbox-label">바탕화면에 캐릭터 표시</span>
             <input type="checkbox" id="pet-toggle">
@@ -176,13 +203,15 @@
     <div class="control-group">
         <label>생일 (Birthday) 🎂</label>
         <div class="birth-row" style="display: flex; gap: 10px; align-items: center;">
-            <select id="birth-month" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
+            <select id="birth-month"
+                style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
                 <option value="0">선택 안 함</option>
-                </select>
+            </select>
             <span>월</span>
-            <select id="birth-day" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
+            <select id="birth-day"
+                style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
                 <option value="0">선택 안 함</option>
-                </select>
+            </select>
             <span>일</span>
         </div>
         <p class="desc">생일이 되면 캐릭터가 축하해줍니다!</p>
@@ -219,10 +248,10 @@
         // 요소 가져오기
         const charSelect = document.getElementById('char-select');
         const petToggle = document.getElementById('pet-toggle'); // [NEW] 체크박스
-        
+
         const freqRange = document.getElementById('freq-range');
         const freqNumber = document.getElementById('freq-number');
-        
+
         const volRange = document.getElementById('vol-range');
         const volNumber = document.getElementById('vol-number');
 
@@ -234,12 +263,12 @@
         const birthDay = document.getElementById('birth-day');
 
         // [추가] 1월~12월, 1일~31일 옵션 자동 생성
-        for(let i=1; i<=12; i++) {
+        for (let i = 1; i <= 12; i++) {
             let option = document.createElement('option');
             option.value = i; option.text = i;
             birthMonth.appendChild(option);
         }
-        for(let i=1; i<=31; i++) {
+        for (let i = 1; i <= 31; i++) {
             let option = document.createElement('option');
             option.value = i; option.text = i;
             birthDay.appendChild(option);
@@ -285,7 +314,7 @@
             // 유효성 검사: 빈도 (3 ~ 300)
             if (isNaN(freqVal) || freqVal < 3 || freqVal > 300) {
                 showToast("⚠️ 빈도는 3초에서 300초 사이여야 합니다!", false);
-                freqNumber.focus(); 
+                freqNumber.focus();
                 return;
             }
 
@@ -309,6 +338,11 @@
             });
 
             showToast("✅ 설정이 저장되었습니다!", true);
+
+            // [NEW] 1초 뒤 창 닫기
+            setTimeout(() => {
+                window.close();
+            }, 1000);
         });
 
         // --- 4. 닫기 버튼 ---
@@ -319,16 +353,17 @@
         // --- 5. 알림 메시지 함수 ---
         function showToast(message, isSuccess) {
             toast.innerText = message;
-            toast.className = "show"; 
-            
+            toast.className = "show";
+
             if (isSuccess) {
                 toast.classList.add("success");
             }
 
-            setTimeout(() => { 
-                toast.className = toast.className.replace("show", ""); 
+            setTimeout(() => {
+                toast.className = toast.className.replace("show", "");
             }, 3000);
         }
     </script>
 </body>
+
 </html>
