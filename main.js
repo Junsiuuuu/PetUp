@@ -153,7 +153,7 @@ function createMacMenu() {
 function getBubblePosition(bubbleWidth, bubbleHeight) {
     let x = 0, y = 0;
     const display = screen.getPrimaryDisplay();
-    const { width: screenWidth, height: screenHeight } = display.workArea; // 작업 표시줄 제외한 화면 크기
+    const { width: screenWidth, height: screenHeight, x: screenX, y: screenY } = display.workArea;
 
     // 1. 펫이 켜져 있을 때 -> 펫 기준
     if (appConfig.showPet && petWindow && !petWindow.isDestroyed() && petWindow.isVisible()) {
@@ -166,19 +166,26 @@ function getBubblePosition(bubbleWidth, bubbleHeight) {
         // 세로: 기본은 머리 위
         y = Math.round(petBounds.y - bubbleHeight - yOffset);
 
-        // 🚨 [핵심] 만약 말풍선이 화면 위쪽을 뚫고 나갔다면? (y < 0)
-        if (y < 0) {
-            // 펫 발밑(아래쪽)으로 위치 변경
+        // [화면 이탈 방지 로직]
+        
+        // 1) 화면 위쪽을 뚫고 나가면(y < 0) -> 펫 발밑으로 이동
+        if (y < screenY) {
             y = Math.round(petBounds.y + petBounds.height + 10);
         }
 
-        // 🚨 [핵심] 만약 말풍선이 화면 오른쪽을 뚫고 나갔다면?
-        if (x + bubbleWidth > screenWidth) {
-            x = screenWidth - bubbleWidth - 10; // 안쪽으로 밀어넣기
+        // 2) 화면 왼쪽을 뚫고 나가면 -> 왼쪽 벽에 붙임
+        if (x < screenX) {
+            x = screenX + 10;
         }
-        // 🚨 [핵심] 만약 말풍선이 화면 왼쪽을 뚫고 나갔다면?
-        if (x < 0) {
-            x = 10; // 안쪽으로 밀어넣기
+
+        // 3) 화면 오른쪽을 뚫고 나가면 -> 오른쪽 벽에 붙임
+        if (x + bubbleWidth > screenX + screenWidth) {
+            x = (screenX + screenWidth) - bubbleWidth - 10;
+        }
+
+        // 4) 화면 아래쪽을 뚫고 나가면 (발밑으로 보냈는데 거기도 좁을 때) -> 다시 머리 위로 + 강제로 화면 안으로
+        if (y + bubbleHeight > screenY + screenHeight) {
+            y = (screenY + screenHeight) - bubbleHeight - 10;
         }
     
     // 2. 펫 꺼짐 (트레이 아이콘 기준)
@@ -195,7 +202,7 @@ function getBubblePosition(bubbleWidth, bubbleHeight) {
         }
         
         // 트레이 말풍선도 화면 오른쪽 넘어가지 않게 방지
-        if (x + bubbleWidth > screenWidth) x = screenWidth - bubbleWidth - 10;
+        if (x + bubbleWidth > screenX + screenWidth) x = (screenX + screenWidth) - bubbleWidth - 10;
     }
 
     return { x, y };
@@ -223,22 +230,21 @@ function createPetWindow() {
 
     petWindow.on('move', () => {
         try {
-            // 1. 말풍선 윈도우가 없거나 죽었으면(destroyed) 무시
             if (!bubbleWindow || bubbleWindow.isDestroyed()) return;
             
-            // 2. 말풍선이 보여질 때만 따라다님
+            // 말풍선이 보일 때만 따라다님
             if (bubbleWindow.isVisible()) {
                 const bubbleBounds = bubbleWindow.getBounds();
-                
-                // 3. 펫 위치 기준으로 말풍선 위치 계산
                 const { x, y } = getBubblePosition(bubbleBounds.width, bubbleBounds.height);
                 
-                // 4. 위치 적용 (에러 발생 시 catch로 이동)
-                bubbleWindow.setPosition(x, y);
+                // ★ [핵심] false 옵션: 애니메이션 없이 즉시 이동 (렉 줄임)
+                bubbleWindow.setPosition(x, y, false);
+                
+                // 이동 중에도 항상 위에 떠있게 유지
+                bubbleWindow.setAlwaysOnTop(true, 'screen-saver');
             }
         } catch (error) {
-            // 이동 중 에러가 나면 무시함 (드래그가 너무 빠를 때 발생 가능)
-            // console.log('이동 중 경미한 에러 무시:', error.message);
+            // 이동 중 발생하는 미세한 에러 무시
         }
     });
 
