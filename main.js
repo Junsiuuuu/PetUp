@@ -12,6 +12,7 @@ let bubbleWindow = null;
 let petWindow = null;
 let settingsWindow = null; // 설정 창 변수
 let statusCheckInterval = null;
+let dragInterval = null;
 
 // --- [전역 설정 변수] ---
 let appConfig = {
@@ -124,6 +125,88 @@ app.whenReady().then(() => {
             if (!isForcedSleep) checkSystemStatus();
         }
     });
+
+    // 1. 드래그 시작
+    ipcMain.on('drag-start', () => {
+        if (!petWindow || petWindow.isDestroyed()) return;
+        
+        try {
+            const cursor = screen.getCursorScreenPoint();
+            const winBounds = petWindow.getBounds();
+            
+            const offsetX = cursor.x - winBounds.x;
+            const offsetY = cursor.y - winBounds.y;
+            const fixedWidth = winBounds.width;
+            const fixedHeight = winBounds.height;
+
+            if (dragInterval) clearInterval(dragInterval);
+
+            // 16ms (약 60fps) 간격
+            dragInterval = setInterval(() => {
+                try {
+                    if (!petWindow || petWindow.isDestroyed()) {
+                        clearInterval(dragInterval);
+                        return;
+                    }
+
+                    const newCursor = screen.getCursorScreenPoint();
+                    const newX = newCursor.x - offsetX;
+                    const newY = newCursor.y - offsetY;
+
+                    // 1. 펫 이동 (크기 고정)
+                    petWindow.setBounds({
+                        x: newX,
+                        y: newY,
+                        width: fixedWidth,
+                        height: fixedHeight
+                    });
+
+                    // 2. 말풍선 이동
+                    if (bubbleWindow && !bubbleWindow.isDestroyed() && bubbleWindow.isVisible()) {
+                        const bubbleBounds = bubbleWindow.getBounds();
+                        
+                        // ★ [핵심] "지금 펫 어디 있어?"(getBounds) 라고 묻지 말고
+                        // "펫은 방금 newX, newY로 갔어!" 라고 직접 알려줍니다.
+                        // 이렇게 하면 시차가 0이 됩니다.
+                        const simulatedPetBounds = {
+                            x: newX,
+                            y: newY,
+                            width: fixedWidth,
+                            height: fixedHeight
+                        };
+
+                        // 수정된 함수에 가짜 위치(simulatedPetBounds)를 넣어줌
+                        const { x: bx, y: by } = getBubblePosition(bubbleBounds.width, bubbleBounds.height, simulatedPetBounds);
+                        
+                        bubbleWindow.setPosition(bx, by, false);
+                        bubbleWindow.setAlwaysOnTop(true, 'screen-saver');
+                    }
+                } catch (e) {
+                    // 드래그 중 에러 무시
+                }
+            }, 16);
+            
+        } catch (error) {
+            console.log("드래그 시작 실패:", error);
+        }
+    });
+
+    // 3. 드래그 끝
+    ipcMain.on('drag-end', () => {
+        if (dragInterval) {
+            clearInterval(dragInterval);
+            dragInterval = null;
+        }
+
+        // ★ [추가] 드래그가 끝나는 순간, 말풍선 위치를 한 번 더 완벽하게 맞춤 (자석 효과)
+        if (petWindow && bubbleWindow && !bubbleWindow.isDestroyed() && bubbleWindow.isVisible()) {
+            const bubbleBounds = bubbleWindow.getBounds();
+            const { x, y } = getBubblePosition(bubbleBounds.width, bubbleBounds.height);
+            
+            // 애니메이션 없이 즉시 이동
+            bubbleWindow.setPosition(x, y, false);
+        }
+    });
 });
 
 // ★ [Mac 수정] 트레이 아이콘 크기 최적화 함수
@@ -150,49 +233,28 @@ function createMacMenu() {
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function getBubblePosition(bubbleWidth, bubbleHeight) {
+function getBubblePosition(bubbleWidth, bubbleHeight, customPetBounds = null) {
     let x = 0, y = 0;
-    const display = screen.getPrimaryDisplay();
-    const { width: screenWidth, height: screenHeight, x: screenX, y: screenY } = display.workArea;
+    
+    // 1. 펫이 켜져 있을 때
+    if (appConfig.showPet && petWindow && !petWindow.isDestroyed()) {
+        const petBounds = customPetBounds || petWindow.getBounds();
+        const yOffset = 20; // 펫 머리 위 간격
 
-    // 1. 펫이 켜져 있을 때 -> 펫 기준
-    if (appConfig.showPet && petWindow && !petWindow.isDestroyed() && petWindow.isVisible()) {
-        const petBounds = petWindow.getBounds();
-        const yOffset = 20; 
-
-        // 가로 중앙 정렬
+        // ★ [가로] 무조건 펫의 정중앙 (화면 밖으로 나가도 상관 안 함)
         x = Math.round(petBounds.x + (petBounds.width / 2) - (bubbleWidth / 2));
         
-        // 세로: 기본은 머리 위
+        // ★ [세로] 무조건 머리 위 (화면 밖으로 나가도 상관 안 함)
         y = Math.round(petBounds.y - bubbleHeight - yOffset);
 
-        // [화면 이탈 방지 로직]
-        
-        // 1) 화면 위쪽을 뚫고 나가면(y < 0) -> 펫 발밑으로 이동
-        if (y < screenY) {
-            y = Math.round(petBounds.y + petBounds.height + 10);
-        }
-
-        // 2) 화면 왼쪽을 뚫고 나가면 -> 왼쪽 벽에 붙임
-        if (x < screenX) {
-            x = screenX + 10;
-        }
-
-        // 3) 화면 오른쪽을 뚫고 나가면 -> 오른쪽 벽에 붙임
-        if (x + bubbleWidth > screenX + screenWidth) {
-            x = (screenX + screenWidth) - bubbleWidth - 10;
-        }
-
-        // 4) 화면 아래쪽을 뚫고 나가면 (발밑으로 보냈는데 거기도 좁을 때) -> 다시 머리 위로 + 강제로 화면 안으로
-        if (y + bubbleHeight > screenY + screenHeight) {
-            y = (screenY + screenHeight) - bubbleHeight - 10;
-        }
+        // ※ screenX, screenY 검사 코드 전부 삭제함! (자유롭게 이동 가능)
     
-    // 2. 펫 꺼짐 (트레이 아이콘 기준)
+    // 2. 펫이 꺼져 있을 때 (트레이 아이콘 기준)
     } else if (tray) {
         const trayBounds = tray.getBounds();
         const yOffset = 10; 
-
+        
+        // 트레이 아이콘 중앙
         x = Math.round(trayBounds.x + (trayBounds.width / 2) - (bubbleWidth / 2));
         
         if (isMac) {
@@ -200,9 +262,7 @@ function getBubblePosition(bubbleWidth, bubbleHeight) {
         } else {
             y = Math.round(trayBounds.y - bubbleHeight - yOffset);
         }
-        
-        // 트레이 말풍선도 화면 오른쪽 넘어가지 않게 방지
-        if (x + bubbleWidth > screenX + screenWidth) x = (screenX + screenWidth) - bubbleWidth - 10;
+        // (트레이 쪽은 원래 고정이라 별도의 충돌 방지가 없어도 괜찮습니다)
     }
 
     return { x, y };
@@ -227,26 +287,6 @@ function createPetWindow() {
     if (isMac) {
         petWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     }
-
-    petWindow.on('move', () => {
-        try {
-            if (!bubbleWindow || bubbleWindow.isDestroyed()) return;
-            
-            // 말풍선이 보일 때만 따라다님
-            if (bubbleWindow.isVisible()) {
-                const bubbleBounds = bubbleWindow.getBounds();
-                const { x, y } = getBubblePosition(bubbleBounds.width, bubbleBounds.height);
-                
-                // ★ [핵심] false 옵션: 애니메이션 없이 즉시 이동 (렉 줄임)
-                bubbleWindow.setPosition(x, y, false);
-                
-                // 이동 중에도 항상 위에 떠있게 유지
-                bubbleWindow.setAlwaysOnTop(true, 'screen-saver');
-            }
-        } catch (error) {
-            // 이동 중 발생하는 미세한 에러 무시
-        }
-    });
 
     petWindow.loadFile('pet.html');
     
