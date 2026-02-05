@@ -129,12 +129,20 @@
             titleEl.innerText = data.title;
             msgEl.innerText = data.content;
 
-            // [NEW] 효과음 재생
+            // [NEW] 효과음 재생 (중복 방지)
             if (data.isNewPopup && data.soundVolume > 0 && data.soundPath) {
                 try {
+                    // 기존 오디오가 있으면 정지
+                    if (window.currentAudio) {
+                        window.currentAudio.pause();
+                        window.currentAudio.currentTime = 0;
+                    }
+
                     const audio = new Audio(data.soundPath);
                     audio.volume = data.soundVolume / 100;
                     audio.play().catch(e => console.log('Audio play failed:', e));
+
+                    window.currentAudio = audio; // 현재 오디오 저장
                 } catch (e) {
                     console.log('Audio init failed:', e);
                 }
