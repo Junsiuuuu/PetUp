@@ -104,7 +104,9 @@ app.whenReady().then(() => {
         if (!bubbleWindow) return;
         bubbleWindow.setSize(width, height);
 
-        const { x, y } = getBubblePosition(width, height);
+        const bounds = bubbleWindow.getBounds();
+        const { x, y } = getBubblePosition(bounds.width, bounds.height);
+        
         bubbleWindow.setPosition(x, y);
     });
 
@@ -577,7 +579,7 @@ function toggleSleepMode() {
 function openSettingsWindow() {
     if (settingsWindow) { settingsWindow.focus(); return; }
     settingsWindow = new BrowserWindow({
-        width: 400, height: 700, title: '환경 설정', autoHideMenuBar: true,
+        width: 400, height: 750, title: '환경 설정', autoHideMenuBar: true,
         webPreferences: { nodeIntegration: true, contextIsolation: false }
     });
     settingsWindow.loadFile('settings.html');
@@ -608,21 +610,19 @@ function toggleBubble() {
 }
 
 function showBubble() {
+    // 1. 윈도우가 없으면 중단
     if (!bubbleWindow || bubbleWindow.isDestroyed()) return;
 
+    // 2. 현재 말풍선 크기 가져오기
     const bounds = bubbleWindow.getBounds();
+
+    // ★ [수정] 직접 계산하지 않고, 'getBubblePosition' 함수에게 위치를 물어봅니다.
+    // 이렇게 하면 resize될 때와 처음 뜰 때의 위치 계산 로직이 100% 일치하게 됩니다.
     const { x, y } = getBubblePosition(bounds.width, bounds.height);
 
-    bubbleWindow.setPosition(x, y, false); // 애니메이션 없이 즉시 이동
-
-    // [NEW] 보일 때마다 꼬리 방향 확실하게 업데이트
-    const tailPosition = (isMac && !appConfig.showPet) ? 'top' : 'bottom';
-    bubbleWindow.webContents.send('update-tail', tailPosition);
-
-    // 순서 중요: 보이기 -> 맨 위로 올리기 -> 포커스
-    bubbleWindow.showInactive(); // show() 대신 showInactive()가 부드러울 때가 있음
-    bubbleWindow.setAlwaysOnTop(true, 'screen-saver'); // 최상위 강제 설정
-    bubbleWindow.focus();
+    // 3. 계산된 위치로 이동 후 표시
+    bubbleWindow.setPosition(x, y);
+    bubbleWindow.show();
 }
 
 function startStatusCheck() {
@@ -670,7 +670,7 @@ async function checkSystemStatus() {
         }
 
         // 3. 배고픔 (배터리 부족)
-        if (battery.percent <= 20 && !battery.isCharging) {
+        if (battery.percent <= 30 && !battery.isCharging) {
             candidates.push({
                 icon: 'hungry.png',
                 title: '배고파요 😭',
@@ -720,7 +720,7 @@ async function checkSystemStatus() {
         }
 
         // 8. 와이파이 원활
-        if (wifi[0].quality >= 80) {
+        if (wifi.length >= 1 && wifi[0].quality >= 80) {
             candidates.push({
                 icon: 'wifi_good.png',
                 title: '인터넷 빨라요! 📡',
