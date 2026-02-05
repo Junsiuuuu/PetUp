@@ -720,7 +720,7 @@ async function checkSystemStatus() {
         }
 
         // 8. 와이파이 원활
-        if (wifi[0].quality >= 80) {
+        if (wifi.length >= 1 && wifi[0].quality >= 80) {
             candidates.push({
                 icon: 'wifi_good.png',
                 title: '인터넷 빨라요! 📡',
