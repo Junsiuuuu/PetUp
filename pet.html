@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <style>
         body {
@@ -12,15 +13,19 @@
             justify-content: center;
             align-items: flex-end;
             overflow: hidden;
-            
+
             /* ★ [수정 1] 기존의 drag 삭제하고 cursor 추가 */
             /* -webkit-app-region: drag;  <-- 이거 절대 있으면 안 됨! (지우세요) */
-            cursor: grab; /* 손바닥 모양 커서 */
+            cursor: grab;
+            /* 손바닥 모양 커서 */
             user-select: none;
         }
+
         body:active {
-            cursor: grabbing; /* 잡았을 때 쥐는 모양 */
+            cursor: grabbing;
+            /* 잡았을 때 쥐는 모양 */
         }
+
         img {
             /* 펫 크기 꽉 차게 */
             width: 100%;
@@ -30,9 +35,10 @@
         }
     </style>
 </head>
+
 <body>
     <img id="pet-image" src="">
-    
+
     <script>
         const { ipcRenderer } = require('electron');
         const img = document.getElementById('pet-image');
@@ -53,6 +59,12 @@
         window.addEventListener('mouseup', () => {
             ipcRenderer.send('drag-end');
         });
+
+        // [NEW] 펫 클릭 이벤트 (main.js에서 드래그/클릭 구분함)
+        body.addEventListener('click', () => {
+            ipcRenderer.send('pet-clicked');
+        });
     </script>
 </body>
+
 </html>
