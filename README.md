@@ -1,4 +1,1 @@
 # PetUp
-
-Download
--Window
