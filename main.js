@@ -341,14 +341,13 @@ function createPetWindow() {
 // --- [NEW] 메뉴를 동적으로 바꾸는 함수 ---
 function updateContextMenu() {
     const contextMenu = Menu.buildFromTemplate([
-        { label: '🎂 오늘의 운세', type: 'normal', click: askDailyFortune },
-        { type: 'separator' },
         {
             // 클릭할 때마다 '재우기' <-> '깨우기' 글자가 바뀜
             label: isForcedSleep ? '🌞 깨우기' : '💤 재우기',
             type: 'normal',
             click: toggleSleepMode
         },
+        { label: '🔮 오늘의 운세', type: 'normal', click: askDailyFortune },
         { type: 'separator' },
         { label: '환경 설정...', type: 'normal', click: openSettingsWindow },
         { type: 'separator' },
@@ -362,13 +361,28 @@ let isTempIcon = false;
 
 ipcMain.on('hide-bubble', () => {
     if (bubbleWindow && !bubbleWindow.isDestroyed()) {
-        bubbleWindow.hide();
-
-        // [NEW] 말풍선이 닫힐 때, 임시로 바뀐 아이콘(운세 등)이 있다면 복구
+        // [NEW] 만약 운세(임시 아이콘) 상태였다면, 말풍선을 끄지 말고 "내용만" 원래대로 복구
         if (isTempIcon) {
-            updatePetState(); // 현재 상태(배고픔, 잠, 기본 등)에 맞춰 다시 그리기
+            restoreImmediateState(); // 아이콘 즉시 복구
+            checkSystemStatus();     // 말풍선 내용을 '현재 상태'로 업데이트
             isTempIcon = false;
+        } else {
+            // 평소 상태라면 그냥 닫기
+            bubbleWindow.hide();
         }
+    }
+});
+
+// [NEW] 펫 클릭 시, 운세 아이콘이었다면 복구
+ipcMain.on('pet-clicked', () => {
+    // 1. 운세 상태면 바로 원래대로 복구 (말풍선 안 끔)
+    if (isTempIcon) {
+        restoreImmediateState();
+        checkSystemStatus();
+        isTempIcon = false;
+    } else {
+        // 2. 평소 상태라면 말풍선 토글 (켜져있음 끄고, 꺼져있음 켜고) -> 트레이랑 동일
+        toggleBubble();
     }
 });
 
@@ -389,7 +403,7 @@ function askDailyFortune() {
 
         // 3. 결과 출력
         // 내용이 길 수 있으므로 제목에 요약을 넣거나 내용은 조금 자를 수도 있음
-        showBubbleMessage(`오늘의 행운: ${result.score}점! 🍀`, result.text, result.icon);
+        showBubbleMessage(`오늘의 행운: ${result.score}점! 🍀`, result.text, 'fortune.png'); // [MOD] fortune.png 사용
         isTempIcon = true; // [NEW] 아이콘이 임시로 변경되었음을 표시
     } catch (error) {
         console.error('운세 생성 실패:', error);
@@ -457,6 +471,29 @@ function generateDailyFortune(birthYear, birthMonth, birthDay) {
 function wakeUpIfSleeping() {
     if (isForcedSleep) {
         toggleSleepMode();
+    }
+}
+
+// [NEW] 즉시 상태 복구 헬퍼 (비동기 지연 없이 바로 아이콘 바꿈)
+function restoreImmediateState() {
+    try {
+        const baseIcon = checkIsBirthday() ? 'birthday.png' : 'normal.png';
+        const stateIcon = isForcedSleep ? 'sleep.png' : baseIcon;
+        const iconPath = path.join(__dirname, 'assets', appConfig.character, stateIcon);
+
+        // 1. 트레이 변경
+        tray.setImage(createTrayIcon(iconPath));
+
+        // 2. 펫 윈도우 변경
+        if (petWindow && !petWindow.isDestroyed()) {
+            const relativePath = `assets/${appConfig.character}/${stateIcon}`;
+            petWindow.webContents.send('update-image', relativePath);
+        }
+
+        // [추가] 말풍선이 켜져있다면, 내용 업데이트를 위해 시스템 체크 한 번 트리거
+        // (단, 이 함수는 동기적이므로 체크는 비동기로 넘김)
+    } catch (e) {
+        console.error("즉시 상태 복구 실패:", e);
     }
 }
 
