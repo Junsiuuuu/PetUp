@@ -2,7 +2,8 @@ const { app, Tray, Menu, nativeImage, BrowserWindow, ipcMain, screen } = require
 const path = require('path');
 const si = require('systeminformation');
 const loudness = require('loudness');
-const fs = require('fs'); // [NEW] 파일 시스템 모듈 추가
+const fs = require('fs');
+// [MOD] 크롤링 제거 -> 내장 로직 사용
 
 const isMac = process.platform === 'darwin';
 // ★ [필수] 사용자 클릭 없이도 TTS/소리 재생 허용
@@ -23,7 +24,7 @@ const defaultConfig = {
     soundVolume: 50,   // 기본 볼륨 50%
     character: 'pig',
     showPet: true,
-    birthday: { month: 0, day: 0 }
+    birthday: { year: 1990, month: 0, day: 0 } // [MOD] year 추가
 };
 
 let appConfig = loadConfig(); // 저장된 설정 불러오기
@@ -340,14 +341,14 @@ function createPetWindow() {
 // --- [NEW] 메뉴를 동적으로 바꾸는 함수 ---
 function updateContextMenu() {
     const contextMenu = Menu.buildFromTemplate([
+        { label: '🎂 오늘의 운세', type: 'normal', click: askDailyFortune },
+        { type: 'separator' },
         {
             // 클릭할 때마다 '재우기' <-> '깨우기' 글자가 바뀜
             label: isForcedSleep ? '🌞 깨우기' : '💤 재우기',
             type: 'normal',
             click: toggleSleepMode
         },
-        { type: 'separator' },
-        { label: '� 오늘의 운세', type: 'normal', click: askDailyFortune }, // [MOD] 메뉴 및 고민해결 삭제
         { type: 'separator' },
         { label: '환경 설정...', type: 'normal', click: openSettingsWindow },
         { type: 'separator' },
@@ -356,22 +357,98 @@ function updateContextMenu() {
     tray.setContextMenu(contextMenu);
 }
 
-// --- 1. 오늘의 운세 ---
+// [NEW] 운세 등 특수 상황에서 아이콘이 변경되었는지 추적
+let isTempIcon = false;
+
+ipcMain.on('hide-bubble', () => {
+    if (bubbleWindow && !bubbleWindow.isDestroyed()) {
+        bubbleWindow.hide();
+
+        // [NEW] 말풍선이 닫힐 때, 임시로 바뀐 아이콘(운세 등)이 있다면 복구
+        if (isTempIcon) {
+            updatePetState(); // 현재 상태(배고픔, 잠, 기본 등)에 맞춰 다시 그리기
+            isTempIcon = false;
+        }
+    }
+});
+
+// --- 1. 오늘의 운세 (정밀 생성 시스템) ---
 function askDailyFortune() {
     wakeUpIfSleeping();
 
+    // 1. 생일 정보가 없으면 거절
+    const { year, month, day } = appConfig.birthday;
+    if (!year || !month || !day) {
+        showBubbleMessage('운세 보기 실패 😢', '환경 설정에서\n생년월일을 모두 입력해주세요!', 'hungry.png');
+        return;
+    }
+
+    // 2. 오늘의 운세 생성
+    try {
+        const result = generateDailyFortune(year, month, day);
+
+        // 3. 결과 출력
+        // 내용이 길 수 있으므로 제목에 요약을 넣거나 내용은 조금 자를 수도 있음
+        showBubbleMessage(`오늘의 행운: ${result.score}점! 🍀`, result.text, result.icon);
+        isTempIcon = true; // [NEW] 아이콘이 임시로 변경되었음을 표시
+    } catch (error) {
+        console.error('운세 생성 실패:', error);
+        showBubbleMessage('에러 발생 😱', '운세를 불러오지 못했어요.', 'hungry.png');
+    }
+}
+
+// [NEW] 정밀 운세 생성 함수 (인터넷 X, 랜덤 X -> 고정값)
+function generateDailyFortune(birthYear, birthMonth, birthDay) {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth() + 1;
+    const currentDay = today.getDate();
+
+    // 1. 고유 시드 생성 (생년월일 + 오늘날짜)
+    // 예: 19951025 + 20240205 = 고유 숫자
+    const seedStr = `${birthYear}${birthMonth}${birthDay}${currentYear}${currentMonth}${currentDay}`;
+    let seed = 0;
+    for (let i = 0; i < seedStr.length; i++) {
+        seed = (seed * 31 + seedStr.charCodeAt(i)) % 100000;
+    }
+
+    // 2. 운세 DB (다양한 문구)
     const fortunes = [
-        "오늘은 뜻밖의 행운이 찾아올 거예요! 🍀\n복권을 사보시는 건 어때요?",
-        "신중함이 필요한 하루입니다.\n작은 실수도 조심하면 좋은 결과가 있을 거예요.",
-        "오래된 친구에게 연락이 올 수도 있어요.\n반갑게 맞이해주세요! 👋",
-        "오늘은 열정이 넘치는 날! 🔥\n미뤄뒀던 일을 시작하기 딱 좋습니다.",
-        "조금 지칠 수 있는 날이에요.\n달콤한 간식으로 기분을 전환해보세요! 🍫",
-        "금전운이 아주 좋아요! 💰\n하지만 과소비는 금물입니다.",
-        "사랑운이 가득한 하루! 💕\n주변 사람들에게 친절을 베풀어보세요."
+        { text: "예상치 못한 기쁜 소식이 들려올 하루입니다! \n오랫동안 기다리던 일이 해결될 기미가 보입니다.", icon: "full.png", minScore: 80 },
+        { text: "오늘은 차분하게 내실을 다지는 것이 좋습니다. \n무리한 욕심보다는 현재에 만족하면 복이 옵니다.", icon: "normal.png", minScore: 50 },
+        { text: "귀인을 만날 수 있는 아주 좋은 날입니다! \n주변 사람들에게 친절하게 대하면 큰 도움이 돌아옵니다.", icon: "cool.png", minScore: 90 },
+        { text: "지출이 조금 늘어날 수 있으니 지갑을 조심하세요! \n계획적인 소비가 필요한 하루입니다.", icon: "hungry.png", minScore: 40 },
+        { text: "사랑운이 가득한 날입니다 💕 \n소중한 사람과 함께 시간을 보내면 사랑이 깊어집니다.", icon: "birthday.png", minScore: 85 },
+        { text: "건강 관리에 유의해야 할 하루입니다. \n가벼운 스트레칭으로 몸을 풀어주세요.", icon: "sleep.png", minScore: 45 },
+        { text: "당신의 창의력이 빛을 발하는 날! \n새로운 아이디어가 떠오르면 바로 메모하세요.", icon: "cool.png", minScore: 88 },
+        { text: "조금은 바쁘고 정신없는 하루가 될 수 있습니다. \n우선순위를 정해서 하나씩 해결해보세요.", icon: "mute.png", minScore: 55 },
+        { text: "뜻밖의 횡재수가 있습니다! 💰 \n작은 행운이 당신을 기다리고 있어요.", icon: "full.png", minScore: 95 },
+        { text: "과거의 실수가 오히려 약이 되는 날입니다. \n자책하기보다는 배움의 기회로 삼으세요.", icon: "normal.png", minScore: 60 }
     ];
 
-    const pick = fortunes[Math.floor(Math.random() * fortunes.length)];
-    showBubbleMessage('오늘의 운세 📅', pick, 'cool.png');
+    // 3. 행운 요소 결정
+    const score = (seed % 51) + 50; // 50 ~ 100점
+    const fortuneIndex = seed % fortunes.length;
+    const selectedFortune = fortunes[fortuneIndex];
+
+    // 점수에 따라 아이콘 보정 (운세 DB의 기본 아이콘보다 점수가 낮으면 조금 더 차분한 걸로)
+    let finalIcon = selectedFortune.icon;
+    if (score < 60) finalIcon = 'hungry.png';
+    else if (score > 90) finalIcon = 'cool.png';
+
+    // 4. 행운의 아이템/색상
+    const items = ["텀블러", "이어폰", "다이어리", "손거울", "책", "모자"];
+    const colors = ["빨강", "파랑", "노랑", "초록", "보라", "검정", "흰색"];
+    const luckyItem = items[seed % items.length];
+    const luckyColor = colors[(seed * 2) % colors.length];
+
+    const fullText = `${selectedFortune.text}\n\n✨ 행운의 아이템: ${luckyItem}\n🎨 행운의 색상: ${luckyColor}`;
+
+    return {
+        text: fullText,
+        icon: finalIcon,
+        score: score
+    };
 }
 
 // [삭제됨] 메뉴 추천 & 고민 해결 기능
@@ -387,6 +464,18 @@ function showBubbleMessage(title, content, iconName) {
     if (bubbleWindow && !bubbleWindow.isDestroyed()) {
         const tailPosition = (isMac && !appConfig.showPet) ? 'top' : 'bottom';
         const soundPath = path.join(__dirname, 'assets', appConfig.character, 'sound.mp3');
+
+        // [NEW] 말풍선 띄울 때 펫 표정도 같이 변경 (일시적)
+        if (iconName) {
+            const iconPath = path.join(__dirname, 'assets', appConfig.character, iconName);
+            // 1. 트레이 아이콘 변경
+            tray.setImage(createTrayIcon(iconPath));
+            // 2. 펫 윈도우 이미지 변경
+            if (petWindow && !petWindow.isDestroyed()) {
+                const relativePath = `assets/${appConfig.character}/${iconName}`;
+                petWindow.webContents.send('update-image', relativePath);
+            }
+        }
 
         bubbleWindow.webContents.send('update-message', {
             title: title,
