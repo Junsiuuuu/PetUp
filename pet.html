@@ -60,7 +60,7 @@
             ipcRenderer.send('drag-end');
         });
 
-        // [NEW] 펫 클릭 이벤트 (운세 등 상태 복구용)
+        // [NEW] 펫 클릭 이벤트 (main.js에서 드래그/클릭 구분함)
         body.addEventListener('click', () => {
             ipcRenderer.send('pet-clicked');
         });

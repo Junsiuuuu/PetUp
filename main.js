@@ -15,6 +15,8 @@ let petWindow = null;
 let settingsWindow = null; // 설정 창 변수
 let statusCheckInterval = null;
 let dragInterval = null;
+let dragHasMoved = false; // [NEW] 드래그 중 실제 이동 여부
+let ignoreClick = false;  // [NEW] 드래그 후 클릭 무시 플래그
 
 // --- [전역 설정 변수] ---
 // --- [전역 설정 변수] ---
@@ -169,6 +171,7 @@ app.whenReady().then(() => {
         try {
             const cursor = screen.getCursorScreenPoint();
             const winBounds = petWindow.getBounds();
+            dragHasMoved = false; // 드래그 시작 시 초기화
 
             const offsetX = cursor.x - winBounds.x;
             const offsetY = cursor.y - winBounds.y;
@@ -188,6 +191,11 @@ app.whenReady().then(() => {
                     const newCursor = screen.getCursorScreenPoint();
                     const newX = newCursor.x - offsetX;
                     const newY = newCursor.y - offsetY;
+
+                    // [NEW] 실제 커서가 조금이라도 움직였는지 체크 (3px 이상)
+                    if (Math.abs(newCursor.x - cursor.x) > 3 || Math.abs(newCursor.y - cursor.y) > 3) {
+                        dragHasMoved = true;
+                    }
 
                     // 1. 펫 이동 (크기 고정)
                     petWindow.setBounds({
@@ -215,7 +223,7 @@ app.whenReady().then(() => {
                         const { x: bx, y: by } = getBubblePosition(bubbleBounds.width, bubbleBounds.height, simulatedPetBounds);
 
                         bubbleWindow.setPosition(bx, by, false);
-                        bubbleWindow.setAlwaysOnTop(true, 'screen-saver');
+                        // [MOD] 깜빡임 원인 제거: 여기서 반복적으로 setAlwaysOnTop 호출하지 않음
                     }
                 } catch (e) {
                     // 드래그 중 에러 무시
@@ -241,6 +249,12 @@ app.whenReady().then(() => {
 
             // 애니메이션 없이 즉시 이동
             bubbleWindow.setPosition(x, y, false);
+        }
+
+        // [NEW] 드래그로 이동했다면, 직후의 클릭 이벤트는 무시하도록 설정
+        if (dragHasMoved) {
+            ignoreClick = true;
+            setTimeout(() => { ignoreClick = false; }, 500); // 0.5초 동안 클릭 무시
         }
     });
 });
@@ -375,6 +389,8 @@ ipcMain.on('hide-bubble', () => {
 
 // [NEW] 펫 클릭 시, 운세 아이콘이었다면 복구
 ipcMain.on('pet-clicked', () => {
+    if (ignoreClick) return; // [NEW] 드래그 방금 끝났으면 클릭 무시
+
     // 1. 운세 상태면 바로 원래대로 복구 (말풍선 안 끔)
     if (isTempIcon) {
         restoreImmediateState();
@@ -617,6 +633,7 @@ function startStatusCheck() {
 
 async function checkSystemStatus() {
     if (isForcedSleep) return;
+    if (isTempIcon) return; // [NEW] 운세 등 임시 아이콘이 떠있으면 상태 체크 건너뜀
 
     try {
         const [battery, wifi, volume, muted, cpu] = await Promise.all([
