@@ -224,10 +224,10 @@
     <div class="control-group">
         <label>말풍선 빈도 (초)</label>
         <div class="input-row">
-            <input type="range" id="freq-range" min="3" max="300">
-            <input type="number" id="freq-number" min="3" max="300">
+            <input type="range" id="freq-range" min="5" max="300">
+            <input type="number" id="freq-number" min="5" max="300">
         </div>
-        <p class="desc">최소 3초 ~ 최대 300초 (5분)</p>
+        <p class="desc">최소 5초 ~ 최대 300초 (5분)</p>
     </div>
 
     <div class="control-group">
@@ -323,8 +323,8 @@
             const freqVal = parseInt(freqNumber.value);
             const volVal = parseInt(volNumber.value);
 
-            // 유효성 검사: 빈도 (3 ~ 300)
-            if (isNaN(freqVal) || freqVal < 3 || freqVal > 300) {
+            // 유효성 검사: 빈도 (5 ~ 300)
+            if (isNaN(freqVal) || freqVal < 5 || freqVal > 300) {
                 showToast("⚠️ 빈도는 3초에서 300초 사이여야 합니다!", false);
                 freqNumber.focus();
                 return;
