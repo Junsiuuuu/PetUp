@@ -160,6 +160,25 @@
             });
         });
 
+        ipcRenderer.on('update-tail', (event, tailPosition) => {
+            const container = document.getElementById('bubble-container');
+            if (tailPosition === 'top') {
+                container.classList.add('tail-top');
+                container.style.marginTop = '15px';
+                container.style.marginBottom = '0';
+            } else {
+                container.classList.remove('tail-top');
+                container.style.marginTop = '0';
+                container.style.marginBottom = '15px';
+            }
+            // 스타일 변경 후 크기 재조정 필요 가능성 있음
+            requestAnimationFrame(() => {
+                const width = container.offsetWidth + 30;
+                const height = container.offsetHeight + 30;
+                ipcRenderer.send('resize-bubble', { width, height });
+            });
+        });
+
         document.body.addEventListener('click', () => {
             ipcRenderer.send('hide-bubble');
         });

@@ -347,14 +347,7 @@ function updateContextMenu() {
             click: toggleSleepMode
         },
         { type: 'separator' },
-        {
-            label: '🔮 물어보기',
-            submenu: [
-                { label: '📅 오늘의 운세', click: askDailyFortune },
-                { label: '🍴 메뉴 추천', click: recommendMenu },
-                { label: '🎲 고민 해결 (Yes/No)', click: askDecision }
-            ]
-        },
+        { label: '� 오늘의 운세', type: 'normal', click: askDailyFortune }, // [MOD] 메뉴 및 고민해결 삭제
         { type: 'separator' },
         { label: '환경 설정...', type: 'normal', click: openSettingsWindow },
         { type: 'separator' },
@@ -381,41 +374,7 @@ function askDailyFortune() {
     showBubbleMessage('오늘의 운세 📅', pick, 'cool.png');
 }
 
-// --- 2. 메뉴 추천 ---
-function recommendMenu() {
-    wakeUpIfSleeping();
-
-    const menus = [
-        "김치찌개", "된장찌개", "삼겹살", "치킨", "피자", "햄버거",
-        "떡볶이", "초밥", "돈까스", "짜장면", "짬뽕", "마라탕",
-        "파스타", "샐러드", "국밥", "샌드위치"
-    ];
-
-    const pick = menus[Math.floor(Math.random() * menus.length)];
-    const comments = [
-        "이거 어때요? 😋",
-        "오늘은 이게 딱이에요! �",
-        "침 고이네요... 🤤",
-        "제가 먹고 싶어서 추천했어요! �"
-    ];
-    const comment = comments[Math.floor(Math.random() * comments.length)];
-
-    showBubbleMessage('메뉴 추천 🍴', `[${pick}]\n${comment}`, 'hungry.png');
-}
-
-// --- 3. 고민 해결 (구 askFortune) ---
-function askDecision() {
-    wakeUpIfSleeping();
-
-    const answers = [
-        "무조건 고! 🚀", "음... 글쎄요 🤔", "오늘은 참으세요 ❌",
-        "당신의 직감을 믿으세요 ✨", "대박 예감! 💰", "조금만 더 생각해보세요 🧠",
-        "지금이 기회예요! ⭐️", "귀여운 저를 봐서 참으세요 🐷"
-    ];
-
-    const pick = answers[Math.floor(Math.random() * answers.length)];
-    showBubbleMessage('고민 해결 🎲', pick, 'normal.png');
-}
+// [삭제됨] 메뉴 추천 & 고민 해결 기능
 
 // --- 공통 헬퍼 함수들 ---
 function wakeUpIfSleeping() {
@@ -513,6 +472,10 @@ function showBubble() {
     const { x, y } = getBubblePosition(bounds.width, bounds.height);
 
     bubbleWindow.setPosition(x, y, false); // 애니메이션 없이 즉시 이동
+
+    // [NEW] 보일 때마다 꼬리 방향 확실하게 업데이트
+    const tailPosition = (isMac && !appConfig.showPet) ? 'top' : 'bottom';
+    bubbleWindow.webContents.send('update-tail', tailPosition);
 
     // 순서 중요: 보이기 -> 맨 위로 올리기 -> 포커스
     bubbleWindow.showInactive(); // show() 대신 showInactive()가 부드러울 때가 있음
