@@ -203,18 +203,20 @@
     <div class="control-group">
         <label>생일 (Birthday) 🎂</label>
         <div class="birth-row" style="display: flex; gap: 10px; align-items: center;">
+            <select id="birth-year"
+                style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
+                <option value="0">연도</option>
+            </select>
             <select id="birth-month"
                 style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
-                <option value="0">선택 안 함</option>
+                <option value="0">월</option>
             </select>
-            <span>월</span>
             <select id="birth-day"
                 style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
-                <option value="0">선택 안 함</option>
+                <option value="0">일</option>
             </select>
-            <span>일</span>
         </div>
-        <p class="desc">생일이 되면 캐릭터가 축하해줍니다!</p>
+        <p class="desc">생일 정보를 정확히 입력하면 '오늘의 운세'가 더 정확해집니다! 🎂</p>
     </div>
 
     <div class="control-group">
@@ -259,18 +261,25 @@
         const closeBtn = document.getElementById('close-btn');
         const toast = document.getElementById('toast');
 
+        const birthYear = document.getElementById('birth-year');
         const birthMonth = document.getElementById('birth-month');
         const birthDay = document.getElementById('birth-day');
 
-        // [추가] 1월~12월, 1일~31일 옵션 자동 생성
+        // [추가] 1950 ~ 현재 연도, 1월~12월, 1일~31일 옵션 자동 생성
+        const currentYear = new Date().getFullYear();
+        for (let i = currentYear; i >= 1950; i--) {
+            let option = document.createElement('option');
+            option.value = i; option.text = i + '년';
+            birthYear.appendChild(option);
+        }
         for (let i = 1; i <= 12; i++) {
             let option = document.createElement('option');
-            option.value = i; option.text = i;
+            option.value = i; option.text = i + '월';
             birthMonth.appendChild(option);
         }
         for (let i = 1; i <= 31; i++) {
             let option = document.createElement('option');
-            option.value = i; option.text = i;
+            option.value = i; option.text = i + '일';
             birthDay.appendChild(option);
         }
 
@@ -280,6 +289,7 @@
             petToggle.checked = config.showPet; // [NEW] 체크 상태 반영
 
             if (config.birthday) {
+                birthYear.value = config.birthday.year || 0;
                 birthMonth.value = config.birthday.month || 0;
                 birthDay.value = config.birthday.day || 0;
             }
@@ -330,6 +340,7 @@
                 character: charSelect.value,
                 showPet: petToggle.checked, // [NEW] 체크박스 값(true/false) 전송
                 birthday: {
+                    year: parseInt(birthYear.value),
                     month: parseInt(birthMonth.value),
                     day: parseInt(birthDay.value)
                 },
